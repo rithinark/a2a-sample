@@ -1,0 +1,7 @@
+.venv
+.files
+.chainlit
+.ipynb_checkpoints
+*.pyc
+*.env
+__pycache__

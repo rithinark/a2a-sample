@@ -1,0 +1,9 @@
+langgraph
+langchain
+langchain-groq
+pydantic-settings
+chainlit
+langchain-classic
+langchain-core
+python-a2a
+a2a-sdk
