@@ -1,52 +1,39 @@
-"""Exact and semantic deduplication utilities."""
+"""Exact and semantic document deduplication."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol
+from dataclasses import dataclass, field
+from uuid import UUID
 
-from financial_ai.shared.models import NormalizedDocument
-
-
-class SemanticIndex(Protocol):
-    """Minimal vector index contract for semantic duplicate checks."""
-
-    def max_similarity(self, text: str) -> float:
-        """Return the highest cosine similarity to indexed documents."""
+from financial_ai.domains.models import NormalizedDocument, cosine_similarity
 
 
-@dataclass(frozen=True)
-class DedupDecision:
-    """Result of a deduplication decision."""
-
-    is_duplicate: bool
-    reason: str
-    similarity: float | None = None
+Embedding = list[float]
 
 
+@dataclass
 class DeduplicationService:
-    """Deduplicates normalized documents before expensive LLM processing."""
+    """Tracks seen documents using checksums and embedding similarity."""
 
-    def __init__(self, semantic_threshold: float = 0.95):
-        self.semantic_threshold = semantic_threshold
-        self._checksums: set[str] = set()
+    semantic_threshold: float = 0.95
+    checksums: dict[str, UUID] = field(default_factory=dict)
+    embeddings: dict[UUID, Embedding] = field(default_factory=dict)
 
-    def check(
-        self, document: NormalizedDocument, index: SemanticIndex | None = None
-    ) -> DedupDecision:
-        if document.checksum in self._checksums:
-            return DedupDecision(is_duplicate=True, reason="exact_checksum")
+    def classify(self, document: NormalizedDocument, embedding: Embedding | None = None) -> NormalizedDocument:
+        duplicate_id = self.checksums.get(document.checksum)
+        if duplicate_id is None and embedding is not None:
+            duplicate_id = self._semantic_duplicate(embedding)
 
-        if index is not None:
-            similarity = index.max_similarity(document.content)
-            if similarity >= self.semantic_threshold:
-                return DedupDecision(
-                    is_duplicate=True,
-                    reason="semantic_similarity",
-                    similarity=similarity,
-                )
+        if duplicate_id is not None:
+            return NormalizedDocument(**{**document.__dict__, "duplicate_of": duplicate_id})
 
-        return DedupDecision(is_duplicate=False, reason="unique")
+        self.checksums[document.checksum] = document.raw_article_id
+        if embedding is not None:
+            self.embeddings[document.raw_article_id] = embedding
+        return document
 
-    def remember(self, document: NormalizedDocument) -> None:
-        self._checksums.add(document.checksum)
+    def _semantic_duplicate(self, embedding: Embedding) -> UUID | None:
+        for document_id, existing in self.embeddings.items():
+            if cosine_similarity(embedding, existing) >= self.semantic_threshold:
+                return document_id
+        return None
