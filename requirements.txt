@@ -7,3 +7,6 @@ langchain-classic
 langchain-core
 python-a2a
 a2a-sdk
+fastapi
+apscheduler
+pytest
