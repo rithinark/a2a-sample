@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Engineering"
+  short_description: "Design bounded, observable agentic systems."
+  default_prompt: "Use $agent-engineering to design or improve an agentic system with explicit state, tools, termination, verification, and observability."
